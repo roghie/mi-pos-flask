@@ -8,7 +8,7 @@ from werkzeug.security import check_password_hash, generate_password_hash
 from helpers import apology, login_required, admin_required, bs
 
 # Configure application
-app = Flask(__name__)
+app:application
 
 # Custom filter
 app.jinja_env.filters["Bs."] = bs
