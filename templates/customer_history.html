@@ -1,0 +1,161 @@
+{% extends "layout.html" %}
+
+{% block title %}
+    Estado-{{ customer.name }}
+{% endblock %}
+
+{% block main %}
+
+<div class="container py-3">
+
+    <!-- CABECERA -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <a href="/customers" class="btn btn-outline-secondary mb-2">⬅️ Volver a Clientes</a>
+            <h2>📋 Estado de cuenta: <strong>{{ customer.name }}</strong></h2>
+            <p class="text-muted mb-0">
+                📞 Teléfono: {{ customer.phone or 'Sin registrar' }} | 📍 Dirección: {{ customer.address or 'Sin registrar' }}
+            </p>
+        </div>
+        <div class="text-end">
+            <span class="d-block text-muted">Deuda Pendiente Actual:</span>
+            <h1 class="text-danger fw-bold mb-2">Bs. {{ "%.2f"|format(customer.balance) }}</h1>
+            {% if customer.balance > 0 %}
+                <button class="btn btn-success btn-lg fw-bold shadow-sm" data-bs-toggle="modal" data-bs-target="#payModal">
+                    💵 Registrar Abono
+                </button>
+            {% else %}
+                <span class="badge bg-success fs-6">Sin saldo pendiente</span>
+            {% endif %}
+        </div>
+    </div>
+
+    <div class="row g-4">
+        <!-- TABLA DE COMPRAS A CRÉDITO -->
+        <div class="col-md-6">
+            <div class="card shadow-sm">
+                <div class="card-header bg-dark text-white fw-bold">
+                    🛒 Compras a Crédito (Fiados)
+                </div>
+                <div class="card-body p-0">
+                    <table class="table table-hover mb-0 align-middle">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Fecha / Hora</th>
+                                <th>Atendido por</th>
+                                <th class="text-end">Monto Total</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% if sales %}
+                                {% for s in sales %}
+                                    <tr>
+                                        <td><small class="text-muted">{{ s.timestamp }}</small></td>
+                                        <td>{{ s.seller_name or 'Sistema' }}</td>
+                                        <td class="text-end fw-bold text-danger">Bs. {{ "%.2f"|format(s.total) }}</td>
+                                    </tr>
+                                {% endfor %}
+                            {% else %}
+                                <tr>
+                                    <td colspan="3" class="text-center text-muted py-3">No hay compras a crédito registradas.</td>
+                                </tr>
+                            {% endif %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- TABLA DE ABONOS / PAGOS -->
+        <div class="col-md-6">
+            <div class="card shadow-sm">
+                <div class="card-header bg-success text-white fw-bold">
+                    💵 Historial de Abonos Recibidos
+                </div>
+                <div class="card-body p-0">
+                    <table class="table table-hover mb-0 align-middle">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Fecha / Hora</th>
+                                <th>Método / Nota</th>
+                                <th>Atendido por</th>
+                                <th class="text-end">Monto Abonado</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% if payments %}
+                                {% for p in payments %}
+                                    <tr>
+                                        <td><small class="text-muted">{{ p.timestamp }}</small></td>
+                                        <td>
+                                            {% if p.payment_type == 'cash' %}
+                                                <span class="badge bg-success">💵 Efectivo</span>
+                                            {% else %}
+                                                <span class="badge bg-info text-dark">📱 QR</span>
+                                            {% endif %}
+                                            {% if p.notes %}
+                                                <br><small class="text-muted">{{ p.notes }}</small>
+                                            {% endif %}
+                                        </td>
+                                        <td>{{ p.seller_name or 'Sistema' }}</td>
+                                        <td class="text-end fw-bold text-success">Bs. {{ "%.2f"|format(p.amount) }}</td>
+                                    </tr>
+                                {% endfor %}
+                            {% else %}
+                                <tr>
+                                    <td colspan="4" class="text-center text-muted py-3">No se han registrado abonos aún.</td>
+                                </tr>
+                            {% endif %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+</div>
+
+<!-- MODAL PARA REGISTRAR ABONO DENTRO DEL DETALLE -->
+<div class="modal fade" id="payModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+        <form action="/customers/pay" method="POST" class="modal-content">
+            <div class="modal-header bg-success text-white">
+                <h5 class="modal-title fw-bold">💵 Registrar Abono de Deuda</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" name="customer_id" value="{{ customer.id }}">
+
+                <div class="alert alert-info py-2 mb-3">
+                    Cliente: <strong>{{ customer.name }}</strong><br>
+                    Deuda pendiente: <strong class="text-danger">Bs. {{ "%.2f"|format(customer.balance) }}</strong>
+                </div>
+
+                <div class="mb-3">
+                    <label for="amount" class="form-label fw-semibold">Monto a Abonar (Bs.) *</label>
+                    <input type="number" step="0.50" min="0.50" max="{{ customer.balance }}"
+                           class="form-control form-control-lg" name="amount" value="{{ '%.2f'|format(customer.balance) }}" required>
+                </div>
+
+                <div class="mb-3">
+                    <label for="payment_type" class="form-label fw-semibold">Forma de Pago</label>
+                    <select name="payment_type" class="form-select">
+                        <option value="cash" selected>💵 Efectivo</option>
+                        <option value="qr">📱 Pago QR</option>
+                    </select>
+                </div>
+
+                <div class="mb-3">
+                    <label for="notes" class="form-label fw-semibold">Notas / Observaciones</label>
+                    <input type="text" class="form-control" name="notes" placeholder="Ej. Pago parcial de deuda">
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="submit" class="btn btn-success fw-bold">Confirmar Abono</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+{% endblock %}

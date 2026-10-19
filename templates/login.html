@@ -1,0 +1,39 @@
+{% extends "layout.html" %}
+
+{% block title %}
+    Login
+{% endblock %}
+
+{% block main %}
+
+<div class="row justify-content-center py-4">
+    <div class="col-md-4">
+        <div class="card shadow-sm">
+            <div class="card-body">
+                <h1 class="h3 text-center mb-4">🔑 Iniciar Sesión</h1>
+
+                <form action="/login" method="POST">
+                    <div class="mb-3">
+                        <label for="username" class="form-label fw-semibold">Usuario</label>
+                        <input type="text" class="form-control" id="username" name="username" required autofocus>
+                    </div>
+                    <div class="mb-3">
+                        <label for="password" class="form-label fw-semibold">Contraseña</label>
+                        <input type="password" class="form-control" id="password" name="password" required>
+                    </div>
+                    <button type="submit" class="btn btn-primary w-100 fw-bold">Entrar</button>
+                </form>
+
+                <!-- Se muestra ÚNICAMENTE si no hay ningún usuario registrado -->
+                {% if show_register %}
+                    <div class="alert alert-warning mt-3 text-center mb-0" role="alert">
+                        <small class="d-block mb-1">⚠️ No hay administradores registrados.</small>
+                        <a href="/register" class="fw-bold">Crear primer usuario Administrador</a>
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}

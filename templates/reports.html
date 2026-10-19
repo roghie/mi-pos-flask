@@ -1,0 +1,193 @@
+{% extends "layout.html" %}
+
+{% block title %}
+    Reportes
+{% endblock %}
+
+{% block main %}
+
+<div class="container py-3">
+
+    <!-- CABECERA Y FILTROS DE PERÍODO -->
+    <div class="row align-items-center mb-4">
+        <div class="col-md-4">
+            <h2>📊 Reporte de ventas</h2>
+        </div>
+        <div class="col-md-8">
+            <form action="/reports" method="GET" class="row g-2 justify-content-md-end align-items-center">
+
+                <!-- Filtro de fechas -->
+                <div class="col-auto">
+                    <select name="period" id="period-select" class="form-select fw-bold" onchange="toggleCustomDates()">
+                        <option value="today" {% if period == 'today' %}selected{% endif %}>📅 Hoy</option>
+                        <option value="week" {% if period == 'week' %}selected{% endif %}>🗓️ Esta Semana</option>
+                        <option value="month" {% if period == 'month' %}selected{% endif %}>📆 Este Mes</option>
+                        <option value="year" {% if period == 'year' %}selected{% endif %}>📈 Este Año</option>
+                        <option value="custom" {% if period == 'custom' %}selected{% endif %}>🔍 Rango personalizado</option>
+                    </select>
+                </div>
+
+                <!-- Filtro adicional de Vendedor (Solo para Admin) -->
+                {% if session.get("user_role") == "admin" %}
+                    <div class="row mb-3 justify-content-end">
+                        <div class="col-md-4">
+                            <div class="input-group">
+                                <span class="input-group-text bg-light fw-bold">Vendedor:</span>
+                                <select name="seller_id" class="form-select" onchange="this.form.submit()">
+                                    <option value="">-- Todos los vendedores --</option>
+                                    {% for s in sellers %}
+                                        <option value="{{ s.id }}" {% if selected_seller == s.id|string %}selected{% endif %}>
+                                            {{ s.username }}
+                                        </option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                {% endif %}
+
+                <!-- Entradas de rango personalizado (Ocultos por defecto si no se elige 'custom') -->
+                <div class="col-auto custom-date-input" style="{% if period != 'custom' %}display: none;{% endif %}">
+                    <input type="date" name="start_date" class="form-control" value="{{ start_date }}">
+                </div>
+                <div class="col-auto custom-date-input" style="{% if period != 'custom' %}display: none;{% endif %}">
+                    <input type="date" name="end_date" class="form-control" value="{{ end_date }}">
+                </div>
+
+                <div class="col-auto">
+                    <button type="submit" class="btn btn-primary fw-bold">Filtrar</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- TARJETAS DE RESUMEN FINANCIERO -->
+    <div class="row g-3 mb-4">
+        <div class="col-md-3">
+            <div class="card bg-success text-white p-3 shadow-sm">
+                <small class="text-uppercase fw-bold">Total Vendido</small>
+                <h2 class="fw-bold my-1">Bs. {{ "%.2f"|format(summary.grand_total) }}</h2>
+                <small>{{ summary.sales_count }} transacciones hechas</small>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card bg-primary text-white p-3 shadow-sm">
+                <small class="text-uppercase fw-bold">Efectivo + QR</small>
+                <h2 class="fw-bold my-1">Bs. {{ "%.2f"|format(summary.total_cash + summary.total_qr) }}</h2>
+                <small>Efectivo: Bs. {{ "%.2f"|format(summary.total_cash) }} | QR: Bs. {{ "%.2f"|format(summary.total_qr) }}</small>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card bg-warning text-dark p-3 shadow-sm">
+                <small class="text-uppercase fw-bold">Ventas a Crédito (Fiado)</small>
+                <h2 class="fw-bold my-1">Bs. {{ "%.2f"|format(summary.total_credit) }}</h2>
+                <small>Pendiente de cobro</small>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card bg-info text-white p-3 shadow-sm">
+                <small class="text-uppercase fw-bold">Abonos Recibidos</small>
+                <h2 class="fw-bold my-1">Bs. {{ "%.2f"|format(payments_total) }}</h2>
+                <small>Pagos de deudas en el período</small>
+            </div>
+        </div>
+    </div>
+
+    <div class="row g-3">
+        <!-- PRODUCTOS MÁS VENDIDOS -->
+        <div class="col-md-5">
+            <div class="card shadow-sm mb-3">
+                <div class="card-header bg-dark text-white fw-bold">
+                    🔥 Top Productos Más Vendidos
+                </div>
+                <div class="card-body p-0">
+                    <table class="table table-hover mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Producto</th>
+                                <th class="text-center">Cant.</th>
+                                <th class="text-end">Total</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% if top_products %}
+                                {% for item in top_products %}
+                                    <tr>
+                                        <td><strong>{{ item.name }}</strong></td>
+                                        <td class="text-center"><span class="badge bg-secondary">{{ item.total_qty }}</span></td>
+                                        <td class="text-end fw-bold">Bs. {{ "%.2f"|format(item.total_amount) }}</td>
+                                    </tr>
+                                {% endfor %}
+                            {% else %}
+                                <tr>
+                                    <td colspan="3" class="text-center text-muted py-3">No hay ventas registradas en este período.</td>
+                                </tr>
+                            {% endif %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- DETALLE DE LAS VENTAS DEL PERÍODO -->
+        <div class="col-md-7">
+            <div class="card shadow-sm">
+                <div class="card-header bg-dark text-white fw-bold">
+                    📋 Historial de Transacciones
+                </div>
+                <div class="card-body p-0">
+                    <table class="table table-hover align-middle mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Fecha / Hora</th>
+                                <th>Cliente</th>
+                                <th>Método</th>
+                                <th class="text-end">Total</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% if sales_list %}
+                                {% for sale in sales_list %}
+                                    <tr>
+                                        <td><small class="text-muted">{{ sale.timestamp }}</small></td>
+                                        <td>{{ sale.customer_name }}</td>
+                                        <td>
+                                            {% if sale.payment_type == 'cash' %}
+                                                <span class="badge bg-success">💵 Efectivo</span>
+                                            {% elif sale.payment_type == 'qr' %}
+                                                <span class="badge bg-info text-dark">📱 QR</span>
+                                            {% else %}
+                                                <span class="badge bg-warning text-dark">📑 Crédito</span>
+                                            {% endif %}
+                                        </td>
+                                        <td class="text-end fw-bold">Bs. {{ "%.2f"|format(sale.total) }}</td>
+                                    </tr>
+                                {% endfor %}
+                            {% else %}
+                                <tr>
+                                    <td colspan="4" class="text-center text-muted py-3">Sin registros para este período.</td>
+                                </tr>
+                            {% endif %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+</div>
+
+<script>
+function toggleCustomDates() {
+    const select = document.getElementById("period-select");
+    const customInputs = document.querySelectorAll(".custom-date-input");
+
+    if (select.value === "custom") {
+        customInputs.forEach(el => el.style.display = "block");
+    } else {
+        customInputs.forEach(el => el.style.display = "none");
+    }
+}
+</script>
+
+{% endblock %}

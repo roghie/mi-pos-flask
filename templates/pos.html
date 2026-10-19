@@ -1,0 +1,369 @@
+{% extends "layout.html" %}
+
+{% block title %}
+    POS
+{% endblock %}
+
+{% block main %}
+
+<!-- Librería de la cámara en el POS -->
+<script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
+
+<div class="container-fluid py-2">
+    <div class="row g-3">
+
+        <!-- LADO IZQUIERDO: BÚSQUEDA Y LISTA DE PRODUCTOS (CARRITO) -->
+        <div class="col-md-8">
+
+            <!-- 1. BARRA DE BÚSQUEDA Y BOTÓN CÁMARA -->
+            <div class="card shadow-sm mb-3">
+                <div class="card-body p-3">
+                    <label class="form-label fw-bold" for="barcode-search">🔍 Escanear o buscar el producto</label>
+                    <p>
+                        <button class="btn btn-primary" type="button" onclick="startPosCamera()">
+                        📷 Escanear
+                    </button>
+                    </p>
+                    <form id="search-form" autocomplete="off">
+                        <div class="input-group input-group-lg">
+                            <input type="search" id="barcode-search" class="form-control"
+                                placeholder="Escribe código / nombre de producto..."
+                                enterkeyhint="search"
+                                autocapitalize="off" autocorrect="off" spellcheck="false"
+                                autofocus>
+                            <button class="btn btn-success" type="submit">🔎 Buscar</button>
+                        </div>
+                    </form>
+
+                    <small class="text-muted">Presiona Enter (o "Buscar" en el celular) tras escribir el código o nombre.</small>
+                </div>
+            </div>
+
+            <!-- 2. RECUADRO DEL LECTOR DE CÁMARA (Oculto hasta presionar "Abrir Cámara") -->
+            <div id="camera-container" class="card shadow-sm mb-3" style="display: none;">
+                <div class="card-body text-center p-2">
+                    <div id="pos-reader" style="width: 100%; max-width: 450px; margin: 0 auto;"></div>
+                    <button class="btn btn-danger btn-sm mt-2" onclick="stopPosCamera()">❌ Cerrar Cámara</button>
+                </div>
+            </div>
+
+            <!-- 3. TABLA DONDE SE RENDERIZA EL CARRITO -->
+            <div class="card shadow-sm">
+                <div class="card-header bg-dark text-white fw-bold">
+                    🛒 Productos en la Venta Actual
+                </div>
+                <div class="card-body p-0">
+                    <table class="table table-hover align-middle mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Producto</th>
+                                <th style="width: 110px;">Precio</th>
+                                <th style="width: 130px;" class="text-center">Cantidad</th>
+                                <th style="width: 110px;">Subtotal</th>
+                                <th style="width: 50px;"></th>
+                            </tr>
+                        </thead>
+                        <tbody id="cart-table-body">
+                            <tr>
+                                <td colspan="5" class="text-center text-muted py-4">
+                                    El carrito está vacío. Escanea o busca un producto arriba.
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+        </div>
+
+        <!-- LADO DERECHO: TOTALES Y MÉTODO DE PAGO -->
+        <div class="col-md-4">
+            <div class="card p-3 shadow-sm border-success">
+                <h5 class="text-muted mb-1">Total a Cobrar:</h5>
+                <h1 class="text-success fw-bold my-2" id="cart-total">Bs. 0.00</h1>
+
+                <hr>
+
+                <!-- Selección del Tipo de Pago -->
+                <div class="mb-3">
+                    <label for="payment-type" class="form-label fw-bold">Forma de Pago</label>
+                    <select id="payment-type" class="form-select form-select-lg" onchange="toggleCustomerSelect()">
+                        <option value="cash" selected>💵 Efectivo (Contado)</option>
+                        <option value="qr">📱 Pago QR (Contado)</option>
+                        <option value="credit">📑 A Crédito (Fiado)</option>
+                    </select>
+                </div>
+
+                <!-- Selección de Cliente (Solo si elige Crédito) -->
+                <div class="mb-3" id="customer-container" style="display: none;">
+                    <label for="customer-id" class="form-label fw-bold text-warning">Seleccionar Cliente Fiado *</label>
+                    <select id="customer-id" class="form-select">
+                        <option value="1" disabled selected>-- Cargando clientes... --</option>
+                    </select>
+                </div>
+
+                <button class="btn btn-success btn-lg w-100 fw-bold py-3 mt-2" onclick="processCheckout()">
+                    ✅ CONCLUIR VENTA
+                </button>
+            </div>
+        </div>
+
+    </div>
+</div>
+
+<!-- JAVASCRIPT QUE MANEJA LA LÓGICA INTERNA DE LA PANTALLA (recomendada por Gemeni)-->
+<script>
+let cart = [];
+let posScanner = null;
+
+// A. AGREGAR O SUMAR PRODUCTO EN EL CARRITO
+function addToCart(product) {
+    const existingIndex = cart.findIndex(item => item.id === product.id);
+
+    if (existingIndex !== -1) {
+        if (cart[existingIndex].qty + 1 > product.stock) {
+            alert(`Stock máximo alcanzado para ${product.name} (Disponibles: ${product.stock})`);
+            return;
+        }
+        cart[existingIndex].qty += 1;
+    } else {
+        if (product.stock < 1) {
+            alert(`El producto "${product.name}" no tiene stock disponible.`);
+            return;
+        }
+        cart.push({
+            id: product.id,
+            name: product.name,
+            price: product.price,
+            stock: product.stock,
+            qty: 1
+        });
+    }
+
+    updateCartUI();
+}
+
+// B. ACTUALIZAR LA VISTA DE LA TABLA Y EL TOTAL
+function updateCartUI() {
+    const tbody = document.getElementById("cart-table-body");
+    tbody.innerHTML = "";
+    let total = 0;
+
+    if (cart.length === 0) {
+        tbody.innerHTML = `
+            <tr>
+                <td colspan="5" class="text-center text-muted py-4">
+                    El carrito está vacío. Escanea o busca un producto arriba.
+                </td>
+            </tr>`;
+        document.getElementById("cart-total").innerText = "Bs. 0.00";
+        return;
+    }
+
+    cart.forEach((item, index) => {
+        const subtotal = item.price * item.qty;
+        total += subtotal;
+
+        tbody.innerHTML += `
+            <tr>
+                <td><strong>${item.name}</strong></td>
+                <td>Bs. ${item.price.toFixed(2)}</td>
+                <td>
+                    <div class="input-group input-group-sm">
+                        <button class="btn btn-outline-secondary" type="button" onclick="changeQty(${index}, -1)">-</button>
+                        <input type="number" class="form-control text-center" value="${item.qty}" readonly>
+                        <button class="btn btn-outline-secondary" type="button" onclick="changeQty(${index}, 1)">+</button>
+                    </div>
+                </td>
+                <td class="fw-bold">Bs. ${subtotal.toFixed(2)}</td>
+                <td>
+                    <button class="btn btn-sm btn-outline-danger" onclick="removeFromCart(${index})">🗑️</button>
+                </td>
+            </tr>`;
+    });
+
+    document.getElementById("cart-total").innerText = `Bs. ${total.toFixed(2)}`;
+}
+
+// C. CAMBIAR CANTIDADES
+function changeQty(index, delta) {
+    const newQty = cart[index].qty + delta;
+    if (newQty <= 0) {
+        removeFromCart(index);
+    } else if (newQty > cart[index].stock) {
+        alert(`Límite de stock alcanzado (${cart[index].stock} unidades).`);
+    } else {
+        cart[index].qty = newQty;
+        updateCartUI();
+    }
+}
+
+// D. QUITAR UN ITEM
+function removeFromCart(index) {
+    cart.splice(index, 1);
+    updateCartUI();
+}
+
+// E. BÚSQUEDA MANUAL (Enter en PC / "Introducir" o "Buscar" en móvil)
+document.getElementById("search-form").addEventListener("submit", function (e) {
+    e.preventDefault(); // evita que la página se recargue
+
+    const input = document.getElementById("barcode-search");
+    const query = input.value.trim();
+    if (!query) return;
+
+    fetch(`/api/product/search?q=${encodeURIComponent(query)}`)
+        .then(res => {
+            if (!res.ok) throw new Error("Error del servidor: " + res.status);
+            return res.json();
+        })
+        .then(products => {
+            if (products.length === 1) {
+                addToCart(products[0]);
+                input.value = "";
+                input.focus();
+            } else if (products.length > 1) {
+                alert("Se encontraron múltiples productos con ese nombre. Sé más preciso.");
+            } else {
+                alert("Producto no registrado o sin stock.");
+            }
+        })
+        .catch(err => {
+            console.error("Error buscando producto:", err);
+            alert("No se pudo realizar la búsqueda. Revisa tu conexión.");
+        });
+});
+
+// F. MANEJO DE CÁMARA
+function startPosCamera() {
+    const container = document.getElementById("camera-container");
+    container.style.display = "block";
+
+// Reiniciar contadores al abrir la cámara
+    lastScannedCode = null;
+    scanCount = 0;
+
+    posScanner = new Html5Qrcode("pos-reader");
+    posScanner.start(
+        { facingMode: "environment" },
+        { fps: 10, qrbox: { width: 280, height: 130 },
+        aspectRatio: 0.7,
+        experimentalFeatures: { useBarCodeDetectorIfSupported: true // Usa el decodificador nativo por hardware si el teléfono lo soporta
+        },
+        advanced: [
+            { focusMode: "continuous" },
+            { exposureMode: "continuous" } ],
+        width: { min: 1280, ideal: 1920 },
+        height: { min: 720, ideal: 1080 } // Forzar resolución Full HD para enfocar mejor las barras
+        },
+
+        (decodedText) => {
+            // CONFIRMACIÓN DOBLE: Debe leer exactamente el mismo código 2 veces consecutivas
+            if (decodedText === lastScannedCode) {
+                scanCount++;
+            } else {
+                lastScannedCode = decodedText;
+                scanCount = 1;
+                return; // Espera a la siguiente lectura para confirmar
+            }
+
+            // Se confirma la lectura correcta al llegar a 2 coincidencias
+            if (scanCount === 2) {
+                // Detenemos la cámara para evitar múltiples búsquedas simultáneas
+                stopPosCamera();
+
+                fetch(`/api/product/search?q=${encodeURIComponent(decodedText)}`)
+                    .then(res => res.json())
+                    .then(products => {
+                        if (products.length > 0) {
+                            addToCart(products[0]);
+                        } else {
+                            alert(`Producto con código ${decodedText} no encontrado.`);
+                        }
+                    })
+                    .catch(err => console.error("Error consultando producto:", err));
+            }
+        },
+        (error) => {
+            // Ignorar errores de búsqueda cuadro a cuadro
+        }
+    );
+}
+
+function stopPosCamera() {
+    if (posScanner) {
+        posScanner.stop().then(() => {
+            document.getElementById("camera-container").style.display = "none";
+        }).catch(err => console.error(err));
+    } else {
+        document.getElementById("camera-container").style.display = "none";
+    }
+}
+
+// G. VISIBILIDAD DE CLIENTES
+function toggleCustomerSelect() {
+    const paymentType = document.getElementById("payment-type").value;
+    const container = document.getElementById("customer-container");
+    if (paymentType === "credit") {
+        container.style.display = "block";
+        loadCustomers();
+    } else {
+        container.style.display = "none";
+    }
+}
+
+function loadCustomers() {
+    fetch("/api/customers")
+        .then(res => res.json())
+        .then(data => {
+            const select = document.getElementById("customer-id");
+            select.innerHTML = '<option value="1" disabled selected>-- Seleccione un cliente --</option>';
+            data.forEach(c => {
+                if (c.id !== 1) {
+                    select.innerHTML += `<option value="${c.id}">${c.name} (Deuda: Bs. ${c.balance.toFixed(2)})</option>`;
+                }
+            });
+        });
+}
+
+// H. PROCESAR VENTA AL BACKEND
+function processCheckout() {
+    if (cart.length === 0) {
+        alert("El carrito está vacío.");
+        return;
+    }
+
+    const paymentType = document.getElementById("payment-type").value;
+    const customerId = document.getElementById("customer-id").value;
+
+    if (paymentType === "credit" && (customerId === "1" || !customerId)) {
+        alert("Debe seleccionar un cliente para registrar la venta a crédito.");
+        return;
+    }
+
+    const payload = {
+        cart: cart,
+        payment_type: paymentType,
+        customer_id: paymentType === "credit" ? customerId : 1
+    };
+
+    fetch("/checkout", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload)
+    })
+    .then(res => res.json())
+    .then(data => {
+        if (data.success) {
+            alert(`¡Venta realizada con éxito! Total: Bs. ${data.total.toFixed(2)}`);
+            cart = [];
+            updateCartUI();
+        } else {
+            alert(`Error: ${data.message}`);
+        }
+    })
+    .catch(err => console.error("Error en checkout:", err));
+}
+</script>
+
+{% endblock %}

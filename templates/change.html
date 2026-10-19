@@ -1,0 +1,27 @@
+{% extends "layout.html" %}
+
+{% block title %}
+    Cambiar contraseña
+{% endblock %}
+
+{% block main %}
+
+    <div class="header">
+        <h1>Cambiar la contraseña</h1>
+    </div>
+    <p>
+        <form action="/change" method="post">
+            <div class="mb-3">
+                <input class="form-control mx-auto w-auto" name="current" placeholder="Contraseña actual" type="password">
+            </div>
+            <div class="mb-3">
+                <input class="form-control mx-auto w-auto" name="new" placeholder="Nueva contraseña" type="password">
+            </div>
+            <div class="mb-3">
+                <input class="form-control mx-auto w-auto" name="confirm" placeholder="Confirma la nueva contraseña" type="password">
+            </div>
+            <button class="btn btn-primary" type="submit">Confirmar cambio</button>
+        </form>
+    </p>
+
+{% endblock %}
