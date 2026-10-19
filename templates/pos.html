@@ -164,24 +164,24 @@ function updateCartUI() {
         const subtotal = item.price * item.qty;
         total += subtotal;
 
-        tbod.innerHTML += `
+        tbody.innerHTML += `
             <tr>
                 <td><strong>${item.name}</strong></td>
                 <td>Bs. ${item.price.toFixed(2)}</td>
                 <td>
-                    <!-- Contenedor con ancho mínimo y controlado -->
                     <div class="input-group input-group-sm mx-auto" style="min-width: 105px; max-width: 120px;">
                         <button class="btn btn-outline-secondary btn-sm px-2" type="button" onclick="changeQty(${index}, -1)">-</button>
-                        <input type="text" class="form-control text-center px-1 fw-bold" value="${item.qty}" readonly>
+                        <input type="text" class="form-control text-center px-1 fw-bold" value="${item.qty}" readonly style="font-size: 0.9rem;">
                         <button class="btn btn-outline-secondary btn-sm px-2" type="button" onclick="changeQty(${index}, 1)">+</button>
                     </div>
                 </td>
                 <td class="fw-bold">Bs. ${subtotal.toFixed(2)}</td>
                 <td>
-                    <button class="btn btn-sm btn-outline-danger" onclick="removeFromCart(${index})">🗑️</button>
+                    <button class="btn btn-sm btn-outline-danger px-2" onclick="removeFromCart(${index})">🗑️</button>
                 </td>
             </tr>
         `;
+    });
 
     document.getElementById("cart-total").innerText = `Bs. ${total.toFixed(2)}`;
 }
