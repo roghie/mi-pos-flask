@@ -169,10 +169,11 @@ function updateCartUI() {
                 <td><strong>${item.name}</strong></td>
                 <td>Bs. ${item.price.toFixed(2)}</td>
                 <td>
-                    <div class="input-group input-group-sm">
-                        <button class="btn btn-outline-secondary" type="button" onclick="changeQty(${index}, -1)">-</button>
-                        <input type="number" class="form-control text-center" value="${item.qty}" readonly>
-                        <button class="btn btn-outline-secondary" type="button" onclick="changeQty(${index}, 1)">+</button>
+                    <!-- Contenedor con ancho mínimo y controlado -->
+                    <div class="input-group input-group-sm mx-auto" style="min-width: 105px; max-width: 120px;">
+                        <button class="btn btn-outline-secondary btn-sm px-2" type="button" onclick="decrementQty('{{ item.id }}')">-</button>
+                        <input type="text" class="form-control text-center px-1 fw-bold" value="{{ item.quantity }}" readonly style="font-size: 0.9rem;">
+                        <button class="btn btn-outline-secondary btn-sm px-2" type="button" onclick="incrementQty('{{ item.id }}')">+</button>
                     </div>
                 </td>
                 <td class="fw-bold">Bs. ${subtotal.toFixed(2)}</td>
