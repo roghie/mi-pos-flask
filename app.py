@@ -7,16 +7,16 @@ from werkzeug.security import check_password_hash, generate_password_hash
 
 from helpers import apology, login_required, admin_required, bs
 
-# Configure application
-app:application
+# 1. Crear la instancia de Flask primero
+app = Flask(__name__)
 
-# Custom filter
-app.jinja_env.filters["Bs."] = bs
-
-# Configure session to use filesystem (instead of signed cookies)
+# 2. Configurar la sesión y Jinja después de crear app
 app.config["SESSION_PERMANENT"] = False
 app.config["SESSION_TYPE"] = "filesystem"
 Session(app)
+
+# 3. Registrar los filtros
+app.jinja_env.filters["Bs."] = bs
 
 # Configure CS50 Library to use SQLite database
 db = SQL("sqlite:///pos.db")
